@@ -1,0 +1,13 @@
+[package]
+authors = ["harshit kachhwaha <harshiit.2602@gmail.com>"]
+description = "Rust OpenMesh"
+license = "MIT"
+name = "rust-openmesh"
+version = "0.0.1"
+repository = "https://github.com/harshitk/rust-openmesh"
+homepage = "https://github.com/harshitk/rust-openmesh"
+
+[dependencies]
+pnet = "0.21.0"
+eui48 = "0.3.2"
+pnet_datalink = "0.21.0"
