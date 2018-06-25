@@ -1,4 +1,5 @@
 extern crate pnet;
+extern crate eui48;
 extern crate pnet_datalink;
 
 use std::env;
@@ -6,21 +7,22 @@ use std::io::{self, Write};
 use std::net::{AddrParseError, Ipv4Addr};
 use std::process;
 
-use pnet_datalink::{Channel, MacAddr, NetworkInterface, ParseMacAddrErr};
+use pnet_datalink::{Channel, NetworkInterface, ParseMacAddrErr};
+use eui48::{MacAddress, Eui48};
 
+use eui48::MacAddress::MacAddr;
 use pnet::packet::arp::MutableArpPacket;
-use pnet::packet::arp::{ArpHardwareTypes, ArpOperation, ArpOperations};
+use pnet::packet::arp::ArpHardwareTypes;
 use pnet::packet::ethernet::EtherTypes;
 use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::{MutablePacket, Packet};
 
-fn send_arp_packet(
+use std::collections::HashMap;
+
+fn send_packet(
     interface: NetworkInterface,
-    source_ip: Ipv4Addr,
     source_mac: MacAddr,
-    target_ip: Ipv4Addr,
     target_mac: MacAddr,
-    arp_operation: ArpOperation,
 ) {
     let (mut tx, _) = match pnet_datalink::channel(&interface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
@@ -42,11 +44,8 @@ fn send_arp_packet(
     arp_packet.set_protocol_type(EtherTypes::Ipv4);
     arp_packet.set_hw_addr_len(6);
     arp_packet.set_proto_addr_len(4);
-    arp_packet.set_operation(arp_operation);
     arp_packet.set_sender_hw_addr(source_mac);
-    arp_packet.set_sender_proto_addr(source_ip);
     arp_packet.set_target_hw_addr(target_mac);
-    arp_packet.set_target_proto_addr(target_ip);
 
     ethernet_packet.set_payload(arp_packet.packet_mut());
 
@@ -65,38 +64,6 @@ fn main() {
         }
     };
 
-    let source_ip: Result<Ipv4Addr, AddrParseError> = match env::args().nth(2) {
-        Some(n) => n.parse(),
-        None => {
-            writeln!(
-                io::stderr(),
-                "USAGE: packetdump <NETWORK INTERFACE> <SOURCE IP> <TARGET IP> <TARGET MAC>"
-            ).unwrap();
-            process::exit(1);
-        }
-    };
-
-    let target_ip: Result<Ipv4Addr, AddrParseError> = match env::args().nth(3) {
-        Some(n) => n.parse(),
-        None => {
-            writeln!(
-                io::stderr(),
-                "USAGE: packetdump <NETWORK INTERFACE> <SOURCE IP> <TARGET IP> <TARGET MAC>"
-            ).unwrap();
-            process::exit(1);
-        }
-    };
-
-    let target_mac: Result<MacAddr, ParseMacAddrErr> = match env::args().nth(4) {
-        Some(n) => n.parse(),
-        None => {
-            writeln!(
-                io::stderr(),
-                "USAGE: packetdump <NETWORK INTERFACE> <SOURCE IP> <TARGET IP> <TARGET MAC>"
-            ).unwrap();
-            process::exit(1);
-        }
-    };
 
     let interfaces = pnet_datalink::interfaces();
     let interfaces_name_match = |iface: &NetworkInterface| iface.name == iface_name;
@@ -106,15 +73,19 @@ fn main() {
         .next()
         .unwrap();
     let source_mac = interface.mac_address();
-    let arp_operation: ArpOperation = ArpOperations::Request;
+    let bcast_mac = MacAddress::broadcast();
+    // Create a new channel, dealing with layer 2 packets
+    // let (mut tx, mut rx) = match datalink::channel(&interface, Default::default()) {
+    //    Ok(Ethernet(tx, rx)) => (tx, rx),
+    //     Ok(_) => panic!("Unhandled channel type"),
+    //    Err(e) => panic!("An error occurred when creating the datalink channel: {}", e)
+    // };
 
-    send_arp_packet(
+
+    send_packet(
         interface,
-        source_ip.unwrap(),
         source_mac,
-        target_ip.unwrap(),
-        target_mac.unwrap(),
-        arp_operation,
+        bcast_mac,
     );
 
     println!("Sent ARP packet.");
